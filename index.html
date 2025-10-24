@@ -465,10 +465,7 @@
         let isWeChat = /MicroMessenger/i.test(navigator.userAgent);
         let imageLoadAttempts = 0;
         const maxImageLoadAttempts = 3;
-        const certificateImageUrls = [
-            'https://i.ibb.co/B20wSZpn/image.jpg', // 主图
-            'https://via.placeholder.com/800x600?text=证书模板' // 备用图
-        ];
+        const certificateImageUrl = 'https://i.ibb.co/B20wSZpn/image.jpg'; // 使用原图URL
 
         // 预加载证书模板图片
         function preloadCertificateImage() {
@@ -476,27 +473,17 @@
                 preloadedImage = new Image();
                 preloadedImage.crossOrigin = "Anonymous"; // 允许跨域
                 
-                // 尝试加载图片
-                function loadImage(urlIndex) {
-                    if (urlIndex >= certificateImageUrls.length) {
-                        reject(new Error('所有图片加载失败'));
-                        return;
-                    }
-                    
-                    preloadedImage.src = certificateImageUrls[urlIndex];
-                    
-                    preloadedImage.onload = function() {
-                        console.log('证书模板图片预加载完成');
-                        resolve(preloadedImage);
-                    };
-                    
-                    preloadedImage.onerror = function() {
-                        console.warn(`图片加载失败，尝试下一个: ${certificateImageUrls[urlIndex]}`);
-                        loadImage(urlIndex + 1);
-                    };
-                }
+                preloadedImage.src = certificateImageUrl;
                 
-                loadImage(0);
+                preloadedImage.onload = function() {
+                    console.log('证书模板图片预加载完成');
+                    resolve(preloadedImage);
+                };
+                
+                preloadedImage.onerror = function() {
+                    console.warn('图片加载失败');
+                    reject(new Error('图片加载失败'));
+                };
             });
         }
 
@@ -581,7 +568,7 @@
             // 创建证书结构
             const certificateHTML = `
                 <div style="position: relative; width: 100%; margin: 0 auto;">
-                    <img src="${preloadedImage ? preloadedImage.src : certificateImageUrls[0]}" 
+                    <img src="${preloadedImage ? preloadedImage.src : certificateImageUrl}" 
                          alt="见证者证书模板" 
                          style="width: 100%; height: auto; display: block;"
                          onload="hideLoading()"
