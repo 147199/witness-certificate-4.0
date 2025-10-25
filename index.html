@@ -312,7 +312,6 @@
             color: #856404;
         }
         
-        /* 新增样式 */
         .error-message {
             background: #f8d7da;
             border: 1px solid #f5c6cb;
@@ -326,24 +325,22 @@
         .retry-button {
             margin-top: 10px;
             padding: 10px 20px;
-            background: #dc3545;
+            background: #8B0000;
             color: white;
             border: none;
             border-radius: 8px;
             cursor: pointer;
         }
         
-        .image-fallback {
-            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-            padding: 40px 20px;
-            text-align: center;
-            border-radius: 15px;
-            margin-bottom: 20px;
-        }
-        
-        .image-fallback h3 {
-            color: #8B0000;
-            margin-bottom: 15px;
+        .image-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 300px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin: 10px 0;
         }
     </style>
 </head>
@@ -463,32 +460,46 @@
         let userInfo = {};
         let preloadedImage = null;
         let isWeChat = /MicroMessenger/i.test(navigator.userAgent);
-        let imageLoadAttempts = 0;
-        const maxImageLoadAttempts = 3;
-        const certificateImageUrl = 'https://i.ibb.co/B20wSZpn/image.jpg'; // 使用原图URL
+        let certificateImageUrl = 'https://i.ibb.co/B20wSZpn/image.jpg';
 
         // 预加载证书模板图片
         function preloadCertificateImage() {
             return new Promise((resolve, reject) => {
                 preloadedImage = new Image();
-                preloadedImage.crossOrigin = "Anonymous"; // 允许跨域
-                
-                preloadedImage.src = certificateImageUrl;
-                
                 preloadedImage.onload = function() {
                     console.log('证书模板图片预加载完成');
-                    resolve(preloadedImage);
+                    resolve();
                 };
-                
                 preloadedImage.onerror = function() {
-                    console.warn('图片加载失败');
+                    console.error('证书模板图片加载失败');
                     reject(new Error('图片加载失败'));
                 };
+                preloadedImage.src = certificateImageUrl;
             });
         }
 
         // 页面加载时预加载图片
         window.addEventListener('load', function() {
+            // 显示图片加载状态
+            const certificateContainer = document.getElementById('certificateForDownload');
+            certificateContainer.innerHTML = `
+                <div class="image-loading">
+                    <div class="loading-spinner"></div>
+                    <p style="margin-top: 15px;">正在加载证书模板...</p>
+                </div>
+            `;
+            
+            // 预加载证书图片
+            preloadCertificateImage().catch(error => {
+                console.error('图片预加载失败:', error);
+                certificateContainer.innerHTML = `
+                    <div class="error-message">
+                        <p>❌ 证书模板加载失败</p>
+                        <p>请检查网络连接后刷新页面重试</p>
+                    </div>
+                `;
+            });
+            
             // 祝福语实时预览
             document.getElementById('blessing').addEventListener('input', function() {
                 const blessing = this.value || '祝福语将显示在这里...';
@@ -500,12 +511,8 @@
                 document.getElementById('wechatTips').style.display = 'block';
             }
             
-            // 预加载图片但不阻塞页面显示
-            setTimeout(() => {
-                preloadCertificateImage().catch(error => {
-                    console.error('图片预加载失败:', error);
-                });
-            }, 1000);
+            // 清空本地存储，确保不保留上次填写的信息
+            localStorage.removeItem('witnessUserInfo');
         });
 
         // 第一步：信息提交
@@ -541,8 +548,7 @@
             document.getElementById('formSection').style.display = 'none';
             document.getElementById('wechatSection').style.display = 'block';
             
-            // 保存用户信息到本地存储
-            localStorage.setItem('witnessUserInfo', JSON.stringify(userInfo));
+            // 不保存用户信息到本地存储，确保每次都是新信息
         });
         
         // 从微信返回生成证书
@@ -559,16 +565,15 @@
             
             // 显示加载提示
             document.getElementById('loadingMessage').style.display = 'block';
+            document.getElementById('successMessage').style.display = 'none';
             document.getElementById('wechatSection').style.display = 'none';
             document.getElementById('certificateSection').style.display = 'block';
             
-            // 立即开始生成证书（不等待图片加载）
+            // 立即开始生成证书
             const certificateContainer = document.getElementById('certificateForDownload');
-            
-            // 创建证书结构
-            const certificateHTML = `
+            certificateContainer.innerHTML = `
                 <div style="position: relative; width: 100%; margin: 0 auto;">
-                    <img src="${preloadedImage ? preloadedImage.src : certificateImageUrl}" 
+                    <img src="${preloadedImage.src}" 
                          alt="见证者证书模板" 
                          style="width: 100%; height: auto; display: block;"
                          onload="hideLoading()"
@@ -579,14 +584,9 @@
                 </div>
             `;
             
-            certificateContainer.innerHTML = certificateHTML;
-            
             // 如果图片已经预加载完成，立即隐藏加载提示
-            if (preloadedImage && preloadedImage.complete) {
+            if (preloadedImage.complete) {
                 setTimeout(hideLoading, 500);
-            } else {
-                // 如果图片未加载，设置超时
-                setTimeout(hideLoading, 3000);
             }
             
             // 记录生成时间
@@ -604,52 +604,10 @@
             console.error('证书模板图片加载失败');
             document.getElementById('loadingMessage').innerHTML = `
                 <div class="error-message">
-                    <p>❌ 图片加载失败，请检查网络连接</p>
-                    <button class="retry-button" onclick="retryImageLoad()">重试</button>
+                    <p>❌ 证书模板加载失败</p>
+                    <p>请检查网络连接后刷新页面重试</p>
                 </div>
             `;
-            
-            // 显示备用证书
-            showFallbackCertificate();
-        }
-        
-        // 显示备用证书
-        function showFallbackCertificate() {
-            const certificateContainer = document.getElementById('certificateForDownload');
-            certificateContainer.innerHTML = `
-                <div class="image-fallback">
-                    <h3>同济大学对口支援井冈山大学20周年</h3>
-                    <p style="font-size: 18px; margin: 20px 0;">见证者证书</p>
-                    <p style="font-size: 24px; font-weight: bold; margin: 20px 0;">${userInfo.name}</p>
-                    <p style="margin: 20px 0;">感谢您见证这一历史时刻</p>
-                    <p style="font-size: 14px; color: #666;">${new Date().getFullYear()}年${new Date().getMonth()+1}月${new Date().getDate()}日</p>
-                </div>
-            `;
-        }
-        
-        // 重试图片加载
-        function retryImageLoad() {
-            imageLoadAttempts++;
-            if (imageLoadAttempts <= maxImageLoadAttempts) {
-                document.getElementById('loadingMessage').innerHTML = `
-                    <div class="loading-spinner"></div>
-                    <p style="font-size: 16px; margin-top: 10px;">正在重新加载图片...</p>
-                `;
-                
-                // 重新预加载图片
-                preloadCertificateImage().then(() => {
-                    generateCertificate();
-                }).catch(() => {
-                    handleImageError();
-                });
-            } else {
-                document.getElementById('loadingMessage').innerHTML = `
-                    <div class="error-message">
-                        <p>❌ 图片加载失败，已尝试多次</p>
-                        <p>请检查网络连接或稍后再试</p>
-                    </div>
-                `;
-            }
         }
         
         // 下载证书功能 - 微信兼容版本
@@ -664,27 +622,17 @@
             `;
             
             // 使用html2canvas将证书转换为图片
-            const options = {
-                scale: isWeChat ? 1.2 : 2, // 提高分辨率
+            html2canvas(certificateContainer, {
+                scale: isWeChat ? 1.2 : 1.5, // 微信中降低分辨率提高成功率
                 useCORS: true,
-                allowTaint: false,
+                allowTaint: true,
                 logging: false,
                 backgroundColor: '#ffffff',
                 removeContainer: true,
+                async: true,
                 width: certificateContainer.scrollWidth,
-                height: certificateContainer.scrollHeight,
-                onclone: function(clonedDoc) {
-                    // 确保克隆的文档中的图片也能正确加载
-                    const images = clonedDoc.querySelectorAll('img');
-                    images.forEach(img => {
-                        if (img.src && img.src !== window.location.href) {
-                            img.crossOrigin = "Anonymous";
-                        }
-                    });
-                }
-            };
-            
-            html2canvas(certificateContainer, options).then(canvas => {
+                height: certificateContainer.scrollHeight
+            }).then(canvas => {
                 // 隐藏加载提示
                 document.getElementById('loadingMessage').style.display = 'none';
                 
@@ -751,7 +699,8 @@
             image.style.cssText = `
                 max-width: 90%;
                 max-height: 70%;
-                border-radius: 10px;
+                border-radius:-
+                10px;
                 box-shadow: 0 0 20px rgba(255,255,255,0.3);
             `;
             
@@ -827,19 +776,8 @@
                 // 滚动到顶部
                 window.scrollTo(0, 0);
                 
-                // 清除本地存储
-                localStorage.removeItem('witnessUserInfo');
-            }
-        });
-        
-        // 页面加载时检查是否有保存的用户信息
-        window.addEventListener('load', function() {
-            const savedUserInfo = localStorage.getItem('witnessUserInfo');
-            if (savedUserInfo) {
-                userInfo = JSON.parse(savedUserInfo);
-                document.getElementById('studentName').value = userInfo.name || '';
-                document.getElementById('blessing').value = userInfo.blessing || '';
-                document.getElementById('blessingPreview').textContent = userInfo.blessing || '祝福语将显示在这里...';
+                // 清空用户信息
+                userInfo = {};
             }
         });
     </script>
